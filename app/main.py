@@ -3,11 +3,10 @@ from fastapi import FastAPI, Response, status, HTTPException, Depends
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from sqlalchemy.orm import Session
-from . import models, schemas
+from . import models, schemas, utils
 from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI()
 
 while True:
@@ -47,7 +46,6 @@ def get_posts(db: Session = Depends(get_db)):
     # posts = cursor.fetchall()
     # print(posts)
     posts = db.query(models.Post).all()
-
     return posts
 
 @app.post("/api/posts", status_code=status.HTTP_201_CREATED, response_model=schemas.Post)
@@ -56,11 +54,9 @@ def create_post(post: schemas.PostCreate, db: Session = Depends(get_db)):
     # new_post = cursor.fetchone()
     # conn.commit()
     # new_post = models.Post(title=post.title, content=post.content, published=post.published)
-
     new_post = models.Post(**post.dict())
     db.add(new_post)
     db.commit()
-
     return new_post
 
 @app.get("/api/posts/{id}", response_model=schemas.Post)
@@ -68,47 +64,45 @@ def get_post(id: int, db: Session = Depends(get_db)):
     # print('id --->', id)
     # cursor.execute("""SELECT * FROM posts WHERE ID=%s""", (str(id),))
     # post = cursor.fetchone()
-
     post = db.query(models.Post).filter(models.Post.id == id).first()
-
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Post not found!")
-        
     return post
 
 @app.delete("/api/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id: int, db: Session = Depends(get_db)):
     # cursor.execute("""DELETE FROM posts WHERE ID=%s RETURNING *""", (str(id),))
     # deleted_post = cursor.fetchone()
-
     post = db.query(models.Post).filter(models.Post.id == id)
-
     if post.first() == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="post Not found")
-
     post.delete(synchronize_session=False)
     db.commit()
-
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @app.put("/api/posts/{id}", response_model=schemas.Post)
-def update_post(id: int, updated_post: schemas.PostCreate,  db: Session = Depends(get_db)):
+def update_post(id: int, updated_post: schemas.PostCreate, db: Session = Depends(get_db)):
     # cursor.execute("""UPDATE posts SET title=%s, content=%s, published=%s WHERE ID=%s RETURNING *""", (post.title, post.content, post.published, id))
     # updated_post = cursor.fetchone()
     # conn.commit()
-
     post_query = db.query(models.Post).filter(models.Post.id == id)
-
     post = post_query.first()
-
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="post Not found")
-
     post_query.update(updated_post.dict(), synchronize_session=False)
-
     db.commit()
-
     return post_query.first()
+
+@app.post("/api/users", status_code=status.HTTP_201_CREATED, response_model=schemas.UserOut)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    hashed_password = utils.hash(user.password)
+    user.password = hashed_password
+    new_user = models.User(**user.dict())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return new_user
