@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, func, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql.expression import text
 from .database import Base
 
 class Post(Base):
@@ -9,7 +11,9 @@ class Post(Base):
     content = Column(String(200), nullable=False)
     published = Column(Boolean, server_default='True', nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(),        onupdate=func.now(), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    owner = relationship("User")
 
 
 class User(Base):
